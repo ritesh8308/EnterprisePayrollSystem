@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using EnterprisePayrollSystem.Models;
+
 Console.ForegroundColor = ConsoleColor.Cyan;
 Console.WriteLine("═══════════════════════════════════════════");
 Console.WriteLine("  Enterprise Payroll Management System");
@@ -8,3 +13,25 @@ Console.WriteLine("Status: Initialized");
 
 Console.ResetColor();
 Console.WriteLine("Connecting to: localhost:1433");
+
+Console.WriteLine();
+Console.WriteLine("--- Polymorphism Demo ---");
+
+List<Employee> staff = new()
+{
+    new FullTimeEmployee(1, "Alice Johnson", "alice@corp.com", 
+        "Engineering", new DateTime(2020, 3, 15), 6500m),
+    new PartTimeEmployee(2, "Bob Singh", "bob@corp.com", 
+        "Support", new DateTime(2022, 8, 1), 30m, 100),
+    new ContractEmployee(3, "Carol Reyes", "carol@corp.com", 
+        "Design", new DateTime(2024, 1, 10), 45000m, 
+        DateTime.UtcNow.AddMonths(6))
+};
+
+foreach (var emp in staff)
+{
+    Console.WriteLine(emp);  // calls ToString() → GetEmployeeInfo() polymorphically
+}
+
+decimal totalAnnualPayroll = staff.Sum(e => e.CalculateGrossSalary());
+Console.WriteLine($"\nTotal Annual Payroll: ${totalAnnualPayroll:N2}");
