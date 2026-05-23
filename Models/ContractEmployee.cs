@@ -43,7 +43,7 @@ public sealed class ContractEmployee : Employee
             throw new ArgumentException("Contract amount must be greater than zero.", nameof(contractAmount));
         }
 
-        // ENCAPSULATION: Validate contract end date is in the future.
+        // ENCAPSULATION: Validate contract_end_date is in the future.
         // TIMEZONE CAVEAT: Comparing directly to DateTime.UtcNow.Date can cause false positives due to timezone offsets.
         // In a production-grade enterprise application, DateTimeOffset or DateOnly should be used.
         if (contractEndDate.Date <= DateTime.UtcNow.Date)

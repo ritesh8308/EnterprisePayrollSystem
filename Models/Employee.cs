@@ -41,9 +41,12 @@ public abstract class Employee
             throw new ArgumentException("Full name cannot be null, empty, or whitespace.", nameof(fullName));
         }
 
+
+/****************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************
         // ENCAPSULATION: Ensure basic structural correctness of email address.
         // TEACHABLE TRADE-OFF: A simple Contains('@') check is highly naive. In a real-world enterprise system,
         // you should parse the email using System.Net.Mail.MailAddress or validate it via rigorous Regular Expressions (Regex).
+****************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************/        
         if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
         {
             throw new ArgumentException("Email must not be null/empty and must contain a valid '@' character.", nameof(email));
@@ -54,9 +57,12 @@ public abstract class Employee
             throw new ArgumentException("Department cannot be null, empty, or whitespace.", nameof(department));
         }
 
+
+/****************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************
         // ENCAPSULATION: Validate hire date is not in the future.
         // TIMEZONE CAVEAT: Comparing directly to DateTime.UtcNow.Date can cause false positives due to timezone offsets
         // (e.g., local time is tomorrow but UTC is still today). In production, DateTimeOffset or DateOnly should be used.
+****************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************/      
         if (hireDate.Date > DateTime.UtcNow.Date)
         {
             throw new ArgumentException("Hire date cannot be in the future.", nameof(hireDate));
@@ -82,6 +88,7 @@ public abstract class Employee
     /// </summary>
     // ABSTRACTION: Abstract method has no body here; subclasses MUST override and implement it.
     public abstract decimal CalculateGrossSalary();
+
 
     /// <summary>
     /// Returns a formatted summary of base employee information.
