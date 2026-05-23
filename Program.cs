@@ -35,3 +35,14 @@ foreach (var emp in staff)
 
 decimal totalAnnualPayroll = staff.Sum(e => e.CalculateGrossSalary());
 Console.WriteLine($"\nTotal Annual Payroll: ${totalAnnualPayroll:N2}");
+
+Console.WriteLine();
+Console.WriteLine("--- Payroll Generation Demo ---");
+
+var payPeriod = new DateTime(2026, 5, 1);
+
+foreach (var emp in staff)
+{
+    var payroll = Payroll.GenerateFor(emp, payPeriod);
+    Console.WriteLine(payroll);
+}
