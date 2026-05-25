@@ -37,16 +37,16 @@ This project is a focused, 1-day deep-dive intended to solidify and demonstrate:
 
 The application follows a strict layered architecture:
 
-```text
-┌─────────────────────────────────┐
-│   Presentation Layer (Console)  │  ← User input, menus, display
-├─────────────────────────────────┤
-│   Service Layer                 │  ← Business logic, validation, custom exceptions
-├─────────────────────────────────┤
-│   Repository Layer              │  ← Data access via stored procedures
-├─────────────────────────────────┤
-│   Database Layer (SQL Server)   │  ← Tables, stored procedures, complex queries
-└─────────────────────────────────┘
+```mermaid
+graph TD
+    UI[Console UI Layer<br>Program.cs & Menus] -->|Invokes business actions| Service[Service Layer<br>Business Logic & Input Validation]
+    Service -->|Requests data operations| Repo[Repository Layer<br>Polymorphic Entity Mapping]
+    Repo -->|Executes Stored Procedures| DB[Database Layer<br>SQL Server 2022 / TPT Tables]
+    
+    style UI fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
+    style Service fill:#e8f5e9,stroke:#388e3c,stroke-width:2px;
+    style Repo fill:#fff3e0,stroke:#f57c00,stroke-width:2px;
+    style DB fill:#ffebee,stroke:#d32f2f,stroke-width:2px;
 ```
 
 Each layer talks only to the one directly beneath it. This enables independent testing, easier debugging, and clean evolution of each concern.
@@ -54,6 +54,7 @@ Each layer talks only to the one directly beneath it. This enables independent t
 ---
 
 ## 📁 Project Structure
+
 ```text
 EnterprisePayrollSystem/
 ├── Models/                      # Domain entities (built ✅)
@@ -75,12 +76,45 @@ EnterprisePayrollSystem/
 └── README.md                    # This file
 ```
 
+### **File Mapping & Project Status**
+
+| Layer / Directory | File | Responsibility | OOP / Arch Concept | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **`Models/`** (Domain) | [Employee.cs](file:///home/rm_8995/projects/EnterprisePayrollSystem/Models/Employee.cs) | Base domain class representing common data and signature. | **Abstraction** (Abstract base) | ✅ Built |
+| | [FullTimeEmployee.cs](file:///home/rm_8995/projects/EnterprisePayrollSystem/Models/FullTimeEmployee.cs) | Concrete class for full-time salaried employees. | **Inheritance & Polymorphism** | ✅ Built |
+| | [PartTimeEmployee.cs](file:///home/rm_8995/projects/EnterprisePayrollSystem/Models/PartTimeEmployee.cs) | Concrete class for hourly-paid part-time staff. | **Inheritance & Polymorphism** | ✅ Built |
+| | [ContractEmployee.cs](file:///home/rm_8995/projects/EnterprisePayrollSystem/Models/ContractEmployee.cs) | Concrete class for fixed-duration contract hires. | **Inheritance & Polymorphism** | ✅ Built |
+| | [Payroll.cs](file:///home/rm_8995/projects/EnterprisePayrollSystem/Models/Payroll.cs) | Historical immutable paycheck ledger sheet. | **Encapsulation & Factory Method** | ✅ Built |
+| **`Database/`** (Schema) | [01_schema.sql](file:///home/rm_8995/projects/EnterprisePayrollSystem/Database/01_schema.sql) | Idempotent schema initialization for TPT tables. | **Table Per Type mapping** | ✅ Built |
+| | [02_seed.sql](file:///home/rm_8995/projects/EnterprisePayrollSystem/Database/02_seed.sql) | Sample personnel and transactional payroll logs. | **Scope Identity Transaction** | ✅ Built |
+| **`Repositories/`** (Data) | *Pending* | ADO.NET SQL mappings and entity reconstruction. | **Repository Pattern** | ⬜ Pending |
+| **`Services/`** (Business) | *Pending* | Business rules, aggregations, database transactions. | **Service Layer** | ⬜ Pending |
+| **`Helpers/`** (Cross-cut) | *Pending* | SQL connections and user input console forms. | **Helper Pattern** | ⬜ Pending |
 
 ---
 
-## 🧠 OOP Concepts in Action
+## 🧠 OOP Concepts & Class Hierarchies
 
-| Concept | Implementation |
+### **Employee Type Class Hierarchy**
+
+```text
+          [Employee (Abstract Base Class)]
+           ├── CalculateGrossSalary() [Abstract]
+           └── GetEmployeeInfo() [Virtual]
+           │
+           ├── [FullTimeEmployee (Sealed concrete)]
+           │    └── Calculates MonthlySalary * 12
+           │
+           ├── [PartTimeEmployee (Sealed concrete)]
+           │    └── Calculates HourlyRate * HoursWorked * 12
+           │
+           └── [ContractEmployee (Sealed concrete)]
+                └── Returns Flat ContractAmount
+```
+
+### **OOP Pillar Mapping**
+
+| Pillar / Concept | Implementation |
 |---|---|
 | **Abstraction** | `Employee` is `abstract`; `CalculateGrossSalary()` is an abstract method — the base defines the contract, subclasses fill in the behavior |
 | **Inheritance** | `FullTimeEmployee`, `PartTimeEmployee`, `ContractEmployee` extend `Employee` via `: base(...)` |
@@ -96,30 +130,66 @@ EnterprisePayrollSystem/
 
 The schema uses the **Table Per Type (TPT)** inheritance mapping strategy and **NO ACTION** referential integrity on payroll history.
 
-### Tables
+### **Entity Relationship Diagram (ERD)**
 
-```text
-Employees (base)              FullTimeEmployees         PartTimeEmployees       ContractEmployees
-─────────────────             ─────────────────         ─────────────────       ─────────────────
-EmployeeId (PK)               EmployeeId (PK/FK)        EmployeeId (PK/FK)      EmployeeId (PK/FK)
-FullName                      MonthlySalary             HourlyRate              ContractAmount
-Email (UNIQUE)                                          HoursWorkedPerMonth     ContractEndDate
-Department
-HireDate
-EmployeeType (CHECK)
-CreatedAt / UpdatedAt
+```mermaid
+erDiagram
+    EMPLOYEES ||--|| FULLTIME_EMPLOYEES : "Is A (EmployeeId)"
+    EMPLOYEES ||--|| PARTTIME_EMPLOYEES : "Is A (EmployeeId)"
+    EMPLOYEES ||--|| CONTRACT_EMPLOYEES : "Is A (EmployeeId)"
+    EMPLOYEES ||--o{ PAYROLLS : "Has (EmployeeId - ON DELETE NO ACTION)"
 
-Payrolls
-─────────────────
-PayrollId (PK)
-EmployeeId (FK → Employees, NO ACTION)
-PayPeriod
-GrossSalary / TaxDeduction / HealthInsuranceDeduction / NetSalary
-GeneratedAt
-UNIQUE (EmployeeId, PayPeriod)
+    EMPLOYEES {
+        int EmployeeId PK "IDENTITY"
+        string FullName "NVARCHAR"
+        string Email UK "NVARCHAR, UNIQUE"
+        string Department "NVARCHAR"
+        date HireDate "DATE"
+        string EmployeeType "CHECK IN ('FullTime', 'PartTime', 'Contract')"
+        datetime CreatedAt "DATETIME2"
+        datetime UpdatedAt "DATETIME2"
+    }
+
+    FULLTIME_EMPLOYEES {
+        int EmployeeId PK, FK "ON DELETE CASCADE"
+        decimal MonthlySalary "CHECK > 0"
+    }
+
+    PARTTIME_EMPLOYEES {
+        int EmployeeId PK, FK "ON DELETE CASCADE"
+        decimal HourlyRate "CHECK > 0"
+        int HoursWorkedPerMonth "CHECK > 0 AND <= 200"
+    }
+
+    CONTRACT_EMPLOYEES {
+        int EmployeeId PK, FK "ON DELETE CASCADE"
+        decimal ContractAmount "CHECK > 0"
+        date ContractEndDate "DATE"
+    }
+
+    PAYROLLS {
+        int PayrollId PK "IDENTITY"
+        int EmployeeId FK "ON DELETE NO ACTION"
+        date PayPeriod "DATE"
+        decimal GrossSalary "CHECK >= 0"
+        decimal TaxDeduction "CHECK >= 0"
+        decimal HealthInsuranceDeduction "CHECK >= 0"
+        decimal NetSalary "DECIMAL"
+        datetime GeneratedAt "DATETIME2"
+    }
 ```
 
-### Key Design Decisions
+### **TPT Database Schema Reference**
+
+| Table Name | Primary Key | Foreign Key Reference | Description / Specific Columns | ON DELETE Behavior |
+| :--- | :--- | :--- | :--- | :--- |
+| **`dbo.Employees`** | `EmployeeId` (Identity) | *None* | Shared base employee details (`FullName`, `Email`, `Department`, `HireDate`, `EmployeeType`). | *N/A* |
+| **`dbo.FullTimeEmployees`** | `EmployeeId` | `EmployeeId` $\rightarrow$ `dbo.Employees` | Concrete subclass table: `MonthlySalary` (`DECIMAL(18,2)`). | `CASCADE` |
+| **`dbo.PartTimeEmployees`** | `EmployeeId` | `EmployeeId` $\rightarrow$ `dbo.Employees` | Concrete subclass table: `HourlyRate` (`DECIMAL(18,2)`), `HoursWorkedPerMonth` (`INT`). | `CASCADE` |
+| **`dbo.ContractEmployees`** | `EmployeeId` | `EmployeeId` $\rightarrow$ `dbo.Employees` | Concrete subclass table: `ContractAmount` (`DECIMAL(18,2)`), `ContractEndDate` (`DATE`). | `CASCADE` |
+| **`dbo.Payrolls`** | `PayrollId` (Identity) | `EmployeeId` $\rightarrow$ `dbo.Employees` | Historical payment logs: `PayPeriod` (`DATE`), `GrossSalary`, `TaxDeduction`, `HealthInsuranceDeduction`, `NetSalary`. | `NO ACTION` (Default / Immutable) |
+
+### **Key Design Decisions**
 
 - **TPT over Table-Per-Hierarchy (TPH):** Chose stronger normalization over query simplicity. No NULL columns in the base table. Every subclass column is `NOT NULL` with `CHECK` constraints — the database itself enforces type-specific invariants.
 - **NO ACTION on Payrolls FK:** Deleting an employee with payroll history is **forbidden at the database level**. Payroll records are legally and operationally immutable; real HR systems behave this way for audit and tax-compliance reasons. The application layer must handle this constraint violation explicitly.
