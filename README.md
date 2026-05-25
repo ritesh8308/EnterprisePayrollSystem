@@ -37,6 +37,7 @@ This project is a focused, 1-day deep-dive intended to solidify and demonstrate:
 
 The application follows a strict layered architecture:
 
+```text
 ┌─────────────────────────────────┐
 │   Presentation Layer (Console)  │  ← User input, menus, display
 ├─────────────────────────────────┤
@@ -46,12 +47,14 @@ The application follows a strict layered architecture:
 ├─────────────────────────────────┤
 │   Database Layer (SQL Server)   │  ← Tables, stored procedures, complex queries
 └─────────────────────────────────┘
+```
 
 Each layer talks only to the one directly beneath it. This enables independent testing, easier debugging, and clean evolution of each concern.
 
 ---
 
 ## 📁 Project Structure
+```text
 EnterprisePayrollSystem/
 ├── Models/                      # Domain entities (built ✅)
 │   ├── Employee.cs              # Abstract base
@@ -70,6 +73,7 @@ EnterprisePayrollSystem/
 ├── EnterprisePayrollSystem.csproj
 ├── Program.cs                   # Entry point + demo
 └── README.md                    # This file
+```
 
 
 ---
@@ -94,6 +98,7 @@ The schema uses the **Table Per Type (TPT)** inheritance mapping strategy and **
 
 ### Tables
 
+```text
 Employees (base)              FullTimeEmployees         PartTimeEmployees       ContractEmployees
 ─────────────────             ─────────────────         ─────────────────       ─────────────────
 EmployeeId (PK)               EmployeeId (PK/FK)        EmployeeId (PK/FK)      EmployeeId (PK/FK)
@@ -103,6 +108,7 @@ Department
 HireDate
 EmployeeType (CHECK)
 CreatedAt / UpdatedAt
+
 Payrolls
 ─────────────────
 PayrollId (PK)
@@ -111,6 +117,7 @@ PayPeriod
 GrossSalary / TaxDeduction / HealthInsuranceDeduction / NetSalary
 GeneratedAt
 UNIQUE (EmployeeId, PayPeriod)
+```
 
 ### Key Design Decisions
 
