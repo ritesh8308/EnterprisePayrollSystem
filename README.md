@@ -187,18 +187,18 @@ erDiagram
     }
 
     FULLTIME_EMPLOYEES {
-        int EmployeeId PK_FK "ON DELETE CASCADE"
+        int EmployeeId PK,FK "ON DELETE CASCADE"
         decimal MonthlySalary "DECIMAL(18,2), CHECK > 0"
     }
 
     PARTTIME_EMPLOYEES {
-        int EmployeeId PK_FK "ON DELETE CASCADE"
+        int EmployeeId PK,FK "ON DELETE CASCADE"
         decimal HourlyRate "DECIMAL(18,2), CHECK > 0"
         int HoursWorkedPerMonth "INT, CHECK 0-200"
     }
 
     CONTRACT_EMPLOYEES {
-        int EmployeeId PK_FK "ON DELETE CASCADE"
+        int EmployeeId PK,FK "ON DELETE CASCADE"
         decimal ContractAmount "DECIMAL(18,2), CHECK > 0"
         date ContractEndDate "DATE"
     }
