@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
+using EnterprisePayrollSystem.Helpers;
 using EnterprisePayrollSystem.Models;
+using Microsoft.Data.SqlClient;
 
 Console.ForegroundColor = ConsoleColor.Cyan;
 Console.WriteLine("═══════════════════════════════════════════");
@@ -45,4 +48,26 @@ foreach (var emp in staff)
 {
     var payroll = Payroll.GenerateFor(emp, payPeriod);
     Console.WriteLine(payroll);
+}
+
+Console.WriteLine();
+Console.WriteLine("--- DatabaseHelper Smoke Test ---");
+
+try
+{
+    var employees = DatabaseHelper.ExecuteReader("usp_GetAllEmployees");
+    Console.WriteLine($"Connected to database. Loaded {employees.Rows.Count} employee rows.");
+    
+    foreach (DataRow row in employees.Rows)
+    {
+        Console.WriteLine(
+            $"  [{row["EmployeeType"]}] {row["FullName"]} " +
+            $"— {row["Department"]} (ID: {row["EmployeeId"]})");
+    }
+}
+catch (SqlException ex)
+{
+    Console.ForegroundColor = ConsoleColor.Red;
+    Console.WriteLine($"Database error {ex.Number}: {ex.Message}");
+    Console.ResetColor();
 }
