@@ -7,7 +7,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose_v2-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-> **Status:** 🟢 **Database Layer Complete** — Phases 0–7 done · Phases 8–15 in progress
+> **Status:** 🟢 **Data Access Layer Started** — Phases 0–8 done · Phases 9–15 in progress
 
 ---
 
@@ -22,9 +22,12 @@
 - [Architectural Choices & Trade-Offs](#️-architectural-choices--trade-offs)
 - [Stored Procedures](#-stored-procedures)
 - [Analytical Queries](#-analytical-queries)
+- [Data Access Layer](#-data-access-layer)
+- [Operations & Backups](#-operations--backups)
 - [Getting Started](#-getting-started)
 - [Configuration](#-configuration)
 - [Build Roadmap](#-build-roadmap)
+- [Incident Log](#-incident-log--real-debugging-stories)
 - [Lessons Captured](#-lessons-captured-during-development)
 - [License](#-license)
 
@@ -32,14 +35,14 @@
 
 ## 🎯 Project Goals
 
-This project is a focused, 1-day deep-dive intended to solidify and demonstrate:
+This project is a focused, multi-day deep-dive intended to solidify and demonstrate:
 
 - **C# / .NET 8** fundamentals in a real, cohesive application
 - **Object-Oriented Programming** — Inheritance, Polymorphism, Encapsulation, Abstraction
 - **Design patterns** — Factory Method, Repository (planned), Service Layer (planned)
 - **SQL Server** proficiency — T-SQL, transactional stored procedures, advanced analytical queries, normalized schema design
 - **Layered architecture** — strict separation of Presentation, Service, Repository, Database
-- **SDLC discipline** — version control, containerization, atomic commits, documentation as code
+- **SDLC discipline** — version control, containerization, atomic commits, automated backups, documentation as code
 
 ---
 
@@ -65,15 +68,17 @@ The application follows a strict layered architecture. Each layer communicates *
 graph TD
     UI[📺 Console UI Layer<br/>Program.cs & Menus] -->|Invokes business actions| Service[⚙️ Service Layer<br/>Business Logic & Input Validation]
     Service -->|Requests data operations| Repo[🗂️ Repository Layer<br/>Polymorphic Entity Mapping]
-    Repo -->|Executes Stored Procedures| DB[🗄️ Database Layer<br/>SQL Server 2022 / TPT Tables]
+    Repo -->|Calls DatabaseHelper| Helper[🔌 DatabaseHelper<br/>ADO.NET Wrapper]
+    Helper -->|Executes Stored Procedures| DB[🗄️ Database Layer<br/>SQL Server 2022 / TPT Tables]
 
     style UI fill:#e1f5fe,stroke:#0288d1,stroke-width:2px,color:#01579b
     style Service fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#1b5e20
     style Repo fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#e65100
+    style Helper fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px,color:#4a148c
     style DB fill:#ffebee,stroke:#d32f2f,stroke-width:2px,color:#b71c1c
 ```
 
-**Why strict layering?** It enables independent testing of each tier, easier debugging (each layer has one clear job), and clean evolution of individual concerns. Swap SQL Server for PostgreSQL? Only the Repository layer changes — Models, Services, and UI remain untouched.
+**Why strict layering?** It enables independent testing of each tier, easier debugging (each layer has one clear job), and clean evolution of individual concerns. Swap SQL Server for PostgreSQL? Only the Repository and DatabaseHelper layers change — Models, Services, and UI remain untouched.
 
 ---
 
@@ -87,18 +92,21 @@ EnterprisePayrollSystem/
 │   ├── PartTimeEmployee.cs          # Sealed concrete subclass
 │   ├── ContractEmployee.cs          # Sealed concrete subclass
 │   └── Payroll.cs                   # Immutable record + factory method
+├── Helpers/                         # 🟡 Utilities
+│   └── DatabaseHelper.cs            # ✅ ADO.NET wrapper (static class)
 ├── Repositories/                    # ⬜ Data access layer (pending)
 ├── Services/                        # ⬜ Business logic layer (pending)
-├── Helpers/                         # ⬜ Utilities (pending)
 ├── Database/                        # ✅ SQL scripts
 │   ├── 01_schema.sql                # TPT tables, constraints, indexes
 │   ├── 02_seed.sql                  # Test data (6 employees, 4 payrolls)
 │   ├── 03_procedures.sql            # 8 transactional stored procedures
 │   └── 04_analytical_queries.sql    # 5 reporting queries (CTEs, window fns)
 ├── docker-compose.yml               # SQL Server container definition
-├── dev-up.sh / dev-down.sh          # Container lifecycle scripts
+├── dev-up.sh                        # Start container + init DB
+├── dev-down.sh                      # Stop container + volume backup
+├── backup.sh                        # On-demand zero-downtime .bak backup
 ├── EnterprisePayrollSystem.csproj   # Project file (net8.0)
-├── Program.cs                       # Entry point + demos
+├── Program.cs                       # Entry point + demos + DB smoke test
 └── README.md                        # This file
 ```
 
@@ -111,13 +119,13 @@ EnterprisePayrollSystem/
 | | `PartTimeEmployee.cs` | Hourly-paid employees | Inheritance + Polymorphism | ✅ |
 | | `ContractEmployee.cs` | Fixed-duration contractors | Inheritance + Polymorphism | ✅ |
 | | `Payroll.cs` | Immutable payroll ledger record | Encapsulation + Factory Method | ✅ |
+| **Helpers** | `DatabaseHelper.cs` | Centralized ADO.NET wrapper for stored procedure calls | Static Utility + Resource Safety | ✅ |
 | **Database** | `01_schema.sql` | Idempotent TPT schema creation | Table Per Type mapping | ✅ |
 | | `02_seed.sql` | Test data via transactional inserts | `SCOPE_IDENTITY()` pattern | ✅ |
 | | `03_procedures.sql` | All CRUD operations | Transactional stored procedures | ✅ |
 | | `04_analytical_queries.sql` | Reporting & analytics | CTEs, window functions | ✅ |
 | **Repositories** | *(pending)* | ADO.NET data access | Repository Pattern | ⬜ |
 | **Services** | *(pending)* | Business logic + validation | Service Layer Pattern | ⬜ |
-| **Helpers** | *(pending)* | Cross-cutting utilities | Helper Pattern | ⬜ |
 
 ---
 
@@ -330,6 +338,21 @@ This project intentionally chose the **more rigorous design path** at several de
 
 ---
 
+### 11. Conditional `DBCC CHECKIDENT` RESEED — Guard Against the Off-By-One Trap
+
+**Choice:** The seed script reseeds the IDENTITY counter only when the table has previously held rows:
+
+```sql
+IF IDENT_CURRENT('dbo.Employees') > 1
+    DBCC CHECKIDENT ('dbo.Employees', RESEED, 0);
+```
+
+**Why:** A blind `DBCC CHECKIDENT('T', RESEED, 0)` behaves differently depending on the table's history. On a **never-populated** table it makes the *next* insert `ID = 0` instead of `1` — a documented but surprising SQL Server behavior. (See [Incident Log #2](#incident-2--employee-ids-started-at-0).) On a previously-populated table the same command correctly yields `1`. The conditional guard skips the reseed on fresh tables so the first insert is always `1`.
+
+**Trade-off:** A few extra lines of T-SQL — well worth eliminating an entire class of silent FK-misalignment bugs.
+
+---
+
 ## 🛠️ Stored Procedures
 
 `Database/03_procedures.sql` contains 8 transactional stored procedures that form the **only** entry point the application uses to interact with the database. No inline SQL allowed in the C# layer.
@@ -398,6 +421,68 @@ END
 
 ---
 
+## 🔌 Data Access Layer
+
+`Helpers/DatabaseHelper.cs` is the **single ADO.NET wrapper** through which every repository talks to SQL Server. It centralizes connection lifecycle, command setup, and parameter binding so no repository repeats that boilerplate.
+
+### Public API
+
+| Method | Returns | Use For |
+| --- | --- | --- |
+| `GetConnection()` | `SqlConnection` | Advanced scenarios needing manual connection control |
+| `ExecuteReader(proc, params?)` | `DataTable` | SELECT procedures — materializes rows into an in-memory table |
+| `ExecuteNonQuery(proc, params?)` | `int` (rows affected) | INSERT/UPDATE/DELETE procedures without OUTPUT params |
+| `ExecuteNonQueryWithOutput(proc, params, outName)` | `int` (OUTPUT value) | INSERT procedures returning a new ID via OUTPUT parameter |
+
+### Design Principles Enforced
+
+- **Resource safety:** every connection/command/reader is wrapped in a `using` statement → guaranteed `Dispose()` even on exceptions, no connection-pool leaks
+- **Stored-procedure-only:** `CommandType.StoredProcedure` is set on every command → no inline SQL, no injection vectors
+- **Short connection lifetime:** `ExecuteReader` calls `DataTable.Load(reader)` *inside* the `using` scope, so the connection closes before the method returns
+- **Error propagation:** `SqlException` is deliberately **not caught** here — it flows up unchanged so the repository/service layers can pattern-match on `ex.Number` (547, 2627, etc.) and map to domain exceptions
+- **Production note flagged in code:** the connection string is a hardcoded `const` for local dev; production would use `IConfiguration` / env vars / a secrets manager
+
+### Verified Behavior
+
+`Program.cs` includes a **DatabaseHelper smoke test** that calls `usp_GetAllEmployees` and prints all 6 seeded employees with type-aware detail — the first end-to-end C#-to-SQL round-trip in the project, exercising the TPT JOIN, the discriminator column, and the full ADO.NET pipeline.
+
+---
+
+## 💾 Operations & Backups
+
+The project ships with three operational scripts that treat the database as cattle, not pets — everything is reproducible and recoverable.
+
+| Script | Purpose | When to Use |
+| --- | --- | --- |
+| `dev-up.sh` | Start the container, wait for readiness | Beginning of every work session |
+| `dev-down.sh` | Stop the container **and rsync the Docker volume** to `~/docker-backups/` (keeps last 5) | End of every work session |
+| `backup.sh` | **Zero-downtime** native `BACKUP DATABASE` to a portable `.bak` in `~/db-backups/` (keeps last 10) | Before any risky operation, or to capture a save-point |
+
+### Two Layers of Backup, Two Different Jobs
+
+- **`dev-down.sh` (filesystem volume backup):** captures the *entire* Docker volume — useful for full-environment restore, but only restorable to a matching Docker volume layout.
+- **`backup.sh` (native `.bak` backup):** captures just the database, online, with `RESTORE VERIFYONLY` integrity check. Portable to any SQL Server 2016+ instance. Supports labels: `./backup.sh --label before-id-fix`.
+
+### Restore From a `.bak`
+
+```bash
+BACKUP_FILE="PayrollDB_20260607-231102_before-id-fix.bak"
+
+docker cp ~/db-backups/PayrollDB/${BACKUP_FILE} \
+  payroll-sql:/var/opt/mssql/backups/${BACKUP_FILE}
+
+docker exec -it payroll-sql /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'YourStrong!Pass123' -C -Q "
+USE master;
+ALTER DATABASE PayrollDB SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+RESTORE DATABASE PayrollDB FROM DISK = N'/var/opt/mssql/backups/${BACKUP_FILE}'
+  WITH REPLACE, CHECKSUM;
+ALTER DATABASE PayrollDB SET MULTI_USER;
+"
+```
+
+---
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -455,14 +540,12 @@ dotnet build
 dotnet run
 ```
 
-Currently outputs a colored banner plus polymorphism and payroll-generation demos.
+Outputs a colored banner, a polymorphism demo, a payroll-generation demo, and a **DatabaseHelper smoke test** that reads all 6 employees live from SQL Server.
 
 ### 5. Stop the database when done
 
 ```bash
-./dev-down.sh
-# or directly:
-docker compose down
+./dev-down.sh   # stops container AND backs up the volume
 ```
 
 Data persists in the `sqldata` Docker volume between sessions.
@@ -494,7 +577,7 @@ Server=localhost,1433;Database=PayrollDB;User Id=sa;Password=YourStrong!Pass123;
 
 The project is being built in **15 sequential phases**.
 
-### ✅ Completed (7 / 15)
+### ✅ Completed (8 / 15)
 
 - [x] **Phase 0** — Docker + SQL Server 2022 infrastructure
 - [x] **Phase 1** — Project scaffold and folder structure
@@ -504,10 +587,10 @@ The project is being built in **15 sequential phases**.
 - [x] **Phase 5** — SQL schema (TPT) and seed data with audit-grade integrity
 - [x] **Phase 6** — 8 stored procedures with `THROW;` error semantics and transactional atomicity
 - [x] **Phase 7** — 5 analytical queries demonstrating CTEs, window functions, conditional aggregation
+- [x] **Phase 8** — `DatabaseHelper` ADO.NET wrapper + live DB smoke test + ops/backup scripts
 
-### 🟡 In Progress / Pending (8 / 15)
+### 🟡 In Progress / Pending (7 / 15)
 
-- [ ] **Phase 8** — `DatabaseHelper` class (ADO.NET wrapper for procedure calls)
 - [ ] **Phase 9** — `EmployeeRepository` with TPT-aware polymorphic mapping
 - [ ] **Phase 10** — `PayrollRepository`
 - [ ] **Phase 11** — `EmployeeService` (validation + business logic + FK exception handling)
@@ -516,7 +599,61 @@ The project is being built in **15 sequential phases**.
 - [ ] **Phase 14** — `Program.cs` wiring + try/catch + logging
 - [ ] **Phase 15** — Final polish, README updates, manual testing
 
-**Progress:** `█████████░░░░░░░░░░░ 47%`
+**Progress:** `██████████░░░░░░░░░░ 53%`
+
+---
+
+## 🔥 Incident Log — Real Debugging Stories
+
+Real engineering isn't a clean march from phase to phase. Two production-style incidents occurred during development. Both were diagnosed methodically and resolved without permanent data loss — precisely because the project follows infrastructure-as-code discipline.
+
+### Incident #1 — Docker Vanished Mid-Project
+
+**Symptom:** `docker: command not found`. The Docker binaries had disappeared; `dpkg -l` showed Docker packages in the `rc` (removed, config-files-remain) state, and the `docker.service` systemd unit was gone.
+
+**Why it happened:** Steam was installed for a quick break, then uninstalled with `apt remove --purge steam`. The follow-up `apt autoremove -y` walked the dependency graph, found dozens of orphaned 32-bit (`:i386`) libraries Steam had pulled in, and — in the cascade — removed shared libraries that Docker's dependency tree also relied on, taking Docker CE down with them. The removal didn't even appear in a `grep docker` of the apt history, because Docker was removed as a *consequence* of dependency resolution, not as a direct *target* of any command.
+
+**How it was overcome (in brief):**
+1. Diagnosed via `dpkg -l`, `systemctl status docker`, and `/var/log/apt/history.log` — confirmed binaries gone but the official Docker apt repo config + GPG key were intact.
+2. Reinstalled Docker CE from the still-configured official apt repo.
+3. **Marked the packages manual** so this can never recur:
+   ```bash
+   sudo apt-mark manual docker-ce docker-ce-cli containerd.io \
+     docker-buildx-plugin docker-compose-plugin
+   ```
+4. *(Side effect:)* a subsequent `apt purge` during cleanup also wiped `/var/lib/docker/volumes/`, destroying the database volume — but because all schema/seed/procedures live in version-controlled `Database/*.sql`, the entire database was rebuilt in ~3 minutes by re-running the four scripts.
+
+**Key takeaway:** For any service you depend on, run `apt-mark manual` after install. And — proven the hard way — **code is the source of truth; the running database is disposable** when its definition lives in git.
+
+---
+
+### Incident #2 — Employee IDs Started at 0
+
+**Symptom:** The `DatabaseHelper` smoke test showed `Alice Johnson (ID: 0)` instead of `ID: 1`. Worse, the `Payrolls` rows seeded with literal `EmployeeId = 1` and `EmployeeId = 3` were now silently attached to the *wrong people* — Alice's checks went to Daniel Park, Bob's to Priya Mehta.
+
+**Why it happened:** The seed script used `DBCC CHECKIDENT('dbo.Employees', RESEED, 0)`. This command has a documented but surprising edge case:
+
+| Table state | After `RESEED, 0`, next insert is |
+| --- | --- |
+| Previously held rows | `1` ✅ |
+| **Never held rows (fresh CREATE)** | `0` ❌ |
+
+When the database was rebuilt from scratch during Incident #1's recovery, the tables were brand-new, so `RESEED, 0` made the first insert `ID = 0`. Every subsequent ID shifted down by one, so the hardcoded foreign keys in the payroll seed pointed at the wrong employees. The system compiled, queried, and rendered perfectly — it just produced **wrong business answers**. The most dangerous kind of bug: *silent semantic corruption*.
+
+**How it was overcome (in brief):**
+1. Confirmed the misalignment with a JOIN that exposed the wrong `PaidEmployee` names.
+2. Took a labeled safety backup first: `./backup.sh --label before-id-fix`.
+3. Replaced the blind reseed with a **conditional guard** (see [Architectural Choice #11](#11-conditional-dbcc-checkident-reseed--guard-against-the-off-by-one-trap)):
+   ```sql
+   IF IDENT_CURRENT('dbo.Employees') > 1
+       DBCC CHECKIDENT ('dbo.Employees', RESEED, 0);
+   ```
+4. Rebuilt the database (schema → seed → procedures) and verified IDs now start at `1` with payrolls correctly attached to Alice and Bob.
+
+**Key takeaways:**
+- `DBCC CHECKIDENT RESEED N` makes the next ID `N` on a fresh table, `N+1` on a used one — a genuine SQL Server footgun.
+- **Production seed scripts should reference rows by natural keys** (e.g., email), never hardcoded numeric IDs, to be immune to ID-allocation surprises.
+- An **integration smoke test that reads real data** caught a bug that no unit test of isolated logic ever would have.
 
 ---
 
@@ -531,6 +668,8 @@ The project is being built in **15 sequential phases**.
 - After `usermod -aG docker $USER`, must log out and back in for group change to apply
 - "Container running" ≠ "service working" — always verify with an actual query (e.g., `sqlcmd SELECT @@VERSION`)
 - Systemd manages services: `start`, `enable`, `status` is the trio you'll use for life
+- **`apt autoremove` can cascade-remove services** whose dependencies are orphaned by an unrelated uninstall — mark critical packages with `apt-mark manual`
+- **`apt purge` on Docker also removes `/var/lib/docker/`** (volumes included) — back up data dirs before purging stateful packages, or use `apt remove`
 
 ### Git Hygiene
 
@@ -547,6 +686,8 @@ The project is being built in **15 sequential phases**.
 - Immutable records (`private` constructor + factory method) prevent calculation drift across a codebase
 - Modern C#: file-scoped namespaces, expression-bodied members, string interpolation, `nameof()` in exceptions
 - `<Nullable>enable</Nullable>` makes string non-nullable by default — embrace it
+- ADO.NET: wrap connections/commands/readers in `using`; materialize `DataTable.Load(reader)` *inside* the scope so the connection closes before returning — never return a live `SqlDataReader`
+- Don't catch `SqlException` in the data-access wrapper — let it propagate so upper layers can map `ex.Number` to domain exceptions
 
 ### Production-Grade Considerations Flagged In Code
 
@@ -566,6 +707,15 @@ The project is being built in **15 sequential phases**.
 - `CASE WHEN` short-circuits on first match — order range conditions most-restrictive first
 - `SUM(CASE WHEN cond THEN 1 ELSE 0 END)` is the conditional-aggregation idiom for counting subcategories within groups
 - Window functions (`ROW_NUMBER`, `RANK`, `DENSE_RANK`) differ in tie behavior — pick based on intent, not familiarity
+- **`DBCC CHECKIDENT RESEED N` makes the next ID `N` on a fresh table but `N+1` on a used one** — guard reseeds with `IF IDENT_CURRENT(...) > 1`
+- **Seed data should reference rows by natural keys, not hardcoded IDs** — hardcoded FK values silently misalign if ID allocation shifts
+
+### Operations & Resilience
+
+- Treat the database as cattle, not pets — schema/seed/procedures in git mean any environment is reproducible in minutes
+- Two backup layers (volume snapshot + native `.bak`) cover different restore scenarios
+- `RESTORE VERIFYONLY` proves a backup is restorable — a bad backup is worse than no backup because it gives false confidence
+- Back up *before* risky operations, automatically at shutdown, and label save-points by intent
 
 ### Project Management
 
@@ -573,6 +723,7 @@ The project is being built in **15 sequential phases**.
 - Update `README.md` as the project evolves — documentation is not optional, it's a deliverable
 - Verify side-effects in databases by reading state, not by trusting "success" messages from clients
 - Architectural choices have costs — name them explicitly, document them, defend them
+- A clear incident log turns painful debugging sessions into portfolio-worthy engineering stories
 
 ---
 
