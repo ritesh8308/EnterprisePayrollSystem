@@ -31,8 +31,11 @@ DELETE FROM dbo.ContractEmployees;
 DELETE FROM dbo.Employees;
 
 -- Reset identity counters back to zero
-DBCC CHECKIDENT ('dbo.Employees', RESEED, 0);
-DBCC CHECKIDENT ('dbo.Payrolls', RESEED, 0);
+IF IDENT_CURRENT('dbo.Employees') > 1
+    DBCC CHECKIDENT ('dbo.Employees', RESEED, 0);
+
+IF IDENT_CURRENT('dbo.Payrolls') > 1
+    DBCC CHECKIDENT ('dbo.Payrolls', RESEED, 0);
 GO
 
 -- 2. Seed Employee Profiles (TPT Transactions)
