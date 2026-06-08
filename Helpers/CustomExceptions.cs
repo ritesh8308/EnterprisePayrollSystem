@@ -45,3 +45,14 @@ public class InvalidEmployeeDataException : Exception
     {
     }
 }
+
+/// <summary>
+/// Exception thrown when attempting to insert a payroll record that already exists for an employee in a specific pay period.
+/// </summary>
+public class DuplicatePayrollException : Exception
+{
+    public DuplicatePayrollException(int employeeId, DateTime payPeriod)
+        : base($"Payroll already exists for employee {employeeId} in period {payPeriod:yyyy-MM}.")
+    {
+    }
+}

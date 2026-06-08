@@ -199,3 +199,70 @@ catch (EmployeeHasPayrollsException ex)
 {
     Console.WriteLine($"  ✓ Correctly raised: {ex.Message}");
 }
+
+Console.WriteLine();
+Console.WriteLine("--- PayrollService Smoke Test ---");
+
+var empRepoForService = new EmployeeRepository();
+var payrollRepoForService = new PayrollRepository();
+var payrollService = new PayrollService(empRepoForService, payrollRepoForService);
+
+// Test 1: Get payrolls for Alice (valid)
+Console.WriteLine("Test 1: GetPayrollsByEmployee(1) — valid (Alice)");
+var alicePayrollsSvc = payrollService.GetPayrollsByEmployee(1);
+Console.WriteLine($"  ✓ Found {alicePayrollsSvc.Count} payroll(s) for Alice");
+
+// Test 2: Get payrolls for non-existent employee (should return empty list)
+Console.WriteLine("Test 2: GetPayrollsByEmployee(999) — valid (not found, empty list)");
+var notFoundPayrollsSvc = payrollService.GetPayrollsByEmployee(999);
+Console.WriteLine($"  ✓ Correctly returned empty list ({notFoundPayrollsSvc.Count} payroll(s))");
+
+var testPayPeriod = new DateTime(2026, 1, 1);  // December 2026 — unlikely to exist
+
+// Test 3
+Console.WriteLine($"Test 3: GenerateAndInsertPayroll(1, {testPayPeriod:yyyy-MM}) — valid (new period)");
+try
+{
+    var newPayrollId = payrollService.GenerateAndInsertPayroll(1, testPayPeriod);
+    Console.WriteLine($"  ✓ Generated and inserted payroll with ID: {newPayrollId}");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"  ✗ Error: {ex.Message}");
+}
+
+// Test 4: Generate payroll for non-existent employee (should raise EmployeeNotFoundException)
+Console.WriteLine("Test 4: GenerateAndInsertPayroll(999, 2026-02) — invalid (employee not found)");
+try
+{
+    payrollService.GenerateAndInsertPayroll(999, new DateTime(2026, 2, 1));
+    Console.WriteLine($"  ✗ ERROR: Should have thrown EmployeeNotFoundException");
+}
+catch (EmployeeNotFoundException ex)
+{
+    Console.WriteLine($"  ✓ Correctly raised: {ex.Message}");
+}
+
+// Test 5: Try to generate duplicate payroll (should raise DuplicatePayrollException)
+Console.WriteLine($"Test 5: GenerateAndInsertPayroll(1, {testPayPeriod:yyyy-MM}) — invalid (duplicate)");
+try
+{
+    payrollService.GenerateAndInsertPayroll(1, testPayPeriod);
+    Console.WriteLine($"  ✗ ERROR: Should have thrown DuplicatePayrollException");
+}
+catch (DuplicatePayrollException ex)
+{
+    Console.WriteLine($"  ✓ Correctly raised: {ex.Message}");
+}
+
+// Test 6: Try to generate payroll with invalid pay period (should raise InvalidEmployeeDataException)
+Console.WriteLine("Test 6: GenerateAndInsertPayroll(1, MinValue) — invalid (bad period)");
+try
+{
+    payrollService.GenerateAndInsertPayroll(1, DateTime.MinValue);
+    Console.WriteLine($"  ✗ ERROR: Should have thrown InvalidEmployeeDataException");
+}
+catch (InvalidEmployeeDataException ex)
+{
+    Console.WriteLine($"  ✓ Correctly raised: {ex.Message}");
+}
