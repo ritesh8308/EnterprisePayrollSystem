@@ -100,7 +100,7 @@ public sealed class Payroll
             taxDeduction: tax,
             healthInsuranceDeduction: insurance,
             netSalary: net,
-            generatedAt: DateTime.UtcNow
+            generatedAt: DateTime.Now
         );
     }
 
