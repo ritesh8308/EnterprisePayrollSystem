@@ -7,7 +7,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose_v2-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-> **Status:** 🟢 **Data Access Layer Started** — Phases 0–8 done · Phases 9–15 in progress
+> **Status:** ✅ **COMPLETE** — All 15 phases delivered · Full vertical slice from SQL Server to interactive console UI
 
 ---
 
@@ -23,6 +23,8 @@
 - [Stored Procedures](#-stored-procedures)
 - [Analytical Queries](#-analytical-queries)
 - [Data Access Layer](#-data-access-layer)
+- [Service Layer](#-service-layer)
+- [Console UI Layer](#-console-ui-layer)
 - [Operations & Backups](#-operations--backups)
 - [Getting Started](#-getting-started)
 - [Configuration](#-configuration)
@@ -39,7 +41,7 @@ This project is a focused, multi-day deep-dive intended to solidify and demonstr
 
 - **C# / .NET 8** fundamentals in a real, cohesive application
 - **Object-Oriented Programming** — Inheritance, Polymorphism, Encapsulation, Abstraction
-- **Design patterns** — Factory Method, Repository (planned), Service Layer (planned)
+- **Design patterns** — Factory Method, Repository, Service Layer, Dependency Injection
 - **SQL Server** proficiency — T-SQL, transactional stored procedures, advanced analytical queries, normalized schema design
 - **Layered architecture** — strict separation of Presentation, Service, Repository, Database
 - **SDLC discipline** — version control, containerization, atomic commits, automated backups, documentation as code
@@ -66,7 +68,7 @@ The application follows a strict layered architecture. Each layer communicates *
 
 ```mermaid
 graph TD
-    UI[📺 Console UI Layer<br/>Program.cs & Menus] -->|Invokes business actions| Service[⚙️ Service Layer<br/>Business Logic & Input Validation]
+    UI[📺 Console UI Layer<br/>Program.cs & MenuHelper] -->|Invokes business actions| Service[⚙️ Service Layer<br/>Business Logic & Input Validation]
     Service -->|Requests data operations| Repo[🗂️ Repository Layer<br/>Polymorphic Entity Mapping]
     Repo -->|Calls DatabaseHelper| Helper[🔌 DatabaseHelper<br/>ADO.NET Wrapper]
     Helper -->|Executes Stored Procedures| DB[🗄️ Database Layer<br/>SQL Server 2022 / TPT Tables]
@@ -80,6 +82,19 @@ graph TD
 
 **Why strict layering?** It enables independent testing of each tier, easier debugging (each layer has one clear job), and clean evolution of individual concerns. Swap SQL Server for PostgreSQL? Only the Repository and DatabaseHelper layers change — Models, Services, and UI remain untouched.
 
+### Request Flow Example — "Generate a Payroll"
+
+```
+User picks menu option 8
+    → MenuHelper validates input (ID positive, date format)
+        → PayrollService verifies employee exists, calls Payroll.GenerateFor()
+            → PayrollRepository binds parameters, calls usp_InsertPayroll
+                → SQL Server inserts row, returns new ID via SCOPE_IDENTITY()
+            ← new PayrollId flows back up
+        ← service returns ID (or maps SqlException 2627 → DuplicatePayrollException)
+    ← menu displays success in green (or the domain error in red)
+```
+
 ---
 
 ## 📁 Project Structure
@@ -91,11 +106,17 @@ EnterprisePayrollSystem/
 │   ├── FullTimeEmployee.cs          # Sealed concrete subclass
 │   ├── PartTimeEmployee.cs          # Sealed concrete subclass
 │   ├── ContractEmployee.cs          # Sealed concrete subclass
-│   └── Payroll.cs                   # Immutable record + factory method
-├── Helpers/                         # 🟡 Utilities
-│   └── DatabaseHelper.cs            # ✅ ADO.NET wrapper (static class)
-├── Repositories/                    # ⬜ Data access layer (pending)
-├── Services/                        # ⬜ Business logic layer (pending)
+│   └── Payroll.cs                   # Immutable record + factory + reconstruction ctor
+├── Repositories/                    # ✅ Data access layer
+│   ├── EmployeeRepository.cs        # TPT-aware polymorphic mapping
+│   └── PayrollRepository.cs         # Sealed-entity mapping
+├── Services/                        # ✅ Business logic layer
+│   ├── EmployeeService.cs           # Validation + SQL→domain exception mapping
+│   └── PayrollService.cs            # Immutable payroll orchestration
+├── Helpers/                         # ✅ Utilities
+│   ├── DatabaseHelper.cs            # ADO.NET wrapper (static class)
+│   ├── CustomExceptions.cs          # Domain-specific exception types
+│   └── MenuHelper.cs                # Interactive console UI
 ├── Database/                        # ✅ SQL scripts
 │   ├── 01_schema.sql                # TPT tables, constraints, indexes
 │   ├── 02_seed.sql                  # Test data (6 employees, 4 payrolls)
@@ -106,7 +127,7 @@ EnterprisePayrollSystem/
 ├── dev-down.sh                      # Stop container + volume backup
 ├── backup.sh                        # On-demand zero-downtime .bak backup
 ├── EnterprisePayrollSystem.csproj   # Project file (net8.0)
-├── Program.cs                       # Entry point + demos + DB smoke test
+├── Program.cs                       # Entry point: DB check + DI wiring + menu launch
 └── README.md                        # This file
 ```
 
@@ -119,13 +140,17 @@ EnterprisePayrollSystem/
 | | `PartTimeEmployee.cs` | Hourly-paid employees | Inheritance + Polymorphism | ✅ |
 | | `ContractEmployee.cs` | Fixed-duration contractors | Inheritance + Polymorphism | ✅ |
 | | `Payroll.cs` | Immutable payroll ledger record | Encapsulation + Factory Method | ✅ |
-| **Helpers** | `DatabaseHelper.cs` | Centralized ADO.NET wrapper for stored procedure calls | Static Utility + Resource Safety | ✅ |
+| **Repositories** | `EmployeeRepository.cs` | Maps TPT rows → correct subclass | Repository Pattern + Discriminator | ✅ |
+| | `PayrollRepository.cs` | Maps payroll rows → immutable records | Repository Pattern | ✅ |
+| **Services** | `EmployeeService.cs` | Validation + FK/UNIQUE exception mapping | Service Layer + DI | ✅ |
+| | `PayrollService.cs` | Payroll generation + duplicate detection | Service Layer + Composition | ✅ |
+| **Helpers** | `DatabaseHelper.cs` | Centralized ADO.NET wrapper | Static Utility + Resource Safety | ✅ |
+| | `CustomExceptions.cs` | Domain-specific exception types | Domain-Driven Error Handling | ✅ |
+| | `MenuHelper.cs` | Interactive console UI orchestration | Presentation Layer | ✅ |
 | **Database** | `01_schema.sql` | Idempotent TPT schema creation | Table Per Type mapping | ✅ |
 | | `02_seed.sql` | Test data via transactional inserts | `SCOPE_IDENTITY()` pattern | ✅ |
 | | `03_procedures.sql` | All CRUD operations | Transactional stored procedures | ✅ |
 | | `04_analytical_queries.sql` | Reporting & analytics | CTEs, window functions | ✅ |
-| **Repositories** | *(pending)* | ADO.NET data access | Repository Pattern | ⬜ |
-| **Services** | *(pending)* | Business logic + validation | Service Layer Pattern | ⬜ |
 
 ---
 
@@ -165,7 +190,8 @@ EnterprisePayrollSystem/
 | **Polymorphism** | Each subclass overrides `CalculateGrossSalary()` with type-specific math; one `List<Employee>` runs three different calculations transparently via dynamic dispatch |
 | **Encapsulation** | All property setters are `private` or `protected`; constructor validates inputs fail-fast before any state assignment |
 | **Immutability** | `Payroll` records are frozen after creation — no public setters, no mutator methods |
-| **Factory Method** | `Payroll.GenerateFor(employee, payPeriod)` encapsulates the full construction recipe; `Payroll`'s constructor is `private` so the factory is the only entry point |
+| **Factory Method** | `Payroll.GenerateFor(employee, payPeriod)` encapsulates the full construction recipe; the calculation constructor is `private` so the factory is the only entry point for *new* payrolls |
+| **Reconstruction Constructor** | A separate `public` constructor rebuilds a `Payroll` from a database row (with its real `PayrollId`) — distinct from generation, mirroring how ORMs separate "create" from "hydrate" |
 | **Sealed Concrete Classes** | All three Employee subclasses are `sealed` — locks the hierarchy at the right layer and enables JIT devirtualization |
 
 ---
@@ -262,7 +288,7 @@ This project intentionally chose the **more rigorous design path** at several de
 - Real HR/payroll systems must preserve payment history for years (audit, tax, disputes)
 - Defense in depth — even buggy app code cannot accidentally destroy financial history
 
-**Trade-off:** `EmployeeService.Delete()` must catch the constraint violation and surface a meaningful domain exception rather than silently failing.
+**Trade-off:** `EmployeeService.DeleteEmployee()` must catch the constraint violation and surface a meaningful domain exception rather than silently failing. (It does — mapping 547 → `EmployeeHasPayrollsException`.)
 
 ---
 
@@ -282,6 +308,8 @@ This project intentionally chose the **more rigorous design path** at several de
 - `THROW;` preserves the original SQL error number (e.g., 547 for FK violation, 2627 for UNIQUE violation), severity, state, and line number
 - `RAISERROR()` rethrows under generic user-defined error 50000 — losing the ability to detect specific failures
 - Lets the C# application layer pattern-match on `ex.Number == 547` and raise meaningful domain exceptions
+
+**Payoff realized:** `EmployeeService` and `PayrollService` both pattern-match on `ex.Number` to raise `EmployeeHasPayrollsException`, `DuplicateEmailException`, and `DuplicatePayrollException`. This design choice is what makes that clean mapping possible.
 
 **Trade-off:** Requires SQL Server 2012+ (we're on 2022, so trivially satisfied).
 
@@ -353,6 +381,18 @@ IF IDENT_CURRENT('dbo.Employees') > 1
 
 ---
 
+### 12. Two-Tier Validation — UI Guards + Service Enforces
+
+**Choice:** Business rules are validated in **two places**: the `MenuHelper` rejects bad input field-by-field with an immediate re-prompt, and the `EmployeeService` / `PayrollService` re-validate the same rules before touching the database.
+
+**Why:**
+- **The UI loop is for UX** — a user typing a future hire date gets corrected on *that field*, not after filling the entire form (see [Incident Log #4](#incident-4--late-validation-felt-broken)).
+- **The service is for correctness** — services are the real trust boundary. Any future caller (a REST API, a batch job, a unit test) goes through the service and gets the same guarantees, even though it never touches `MenuHelper`.
+
+**Trade-off:** The same rule (e.g., "hire date not in the future") is expressed twice. That duplication is intentional: the UI copy is a convenience, the service copy is the contract. Never trust the UI to be the only gate.
+
+---
+
 ## 🛠️ Stored Procedures
 
 `Database/03_procedures.sql` contains 8 transactional stored procedures that form the **only** entry point the application uses to interact with the database. No inline SQL allowed in the C# layer.
@@ -365,7 +405,7 @@ IF IDENT_CURRENT('dbo.Employees') > 1
 | 4 | `usp_InsertPartTimeEmployee` | WRITE (Tx) | Atomic insert into Employees + PartTimeEmployees |
 | 5 | `usp_InsertContractEmployee` | WRITE (Tx) | Atomic insert into Employees + ContractEmployees |
 | 6 | `usp_DeleteEmployee` | WRITE | Deletes from base — relies on `CASCADE` (subclass) and `NO ACTION` (payrolls) |
-| 7 | `usp_InsertPayroll` | WRITE (Tx) | Records a payroll; `UNIQUE` constraint enforces one-per-period |
+| 7 | `usp_InsertPayroll` | WRITE (Tx) | Records a payroll (incl. `@GeneratedAt`); `UNIQUE` constraint enforces one-per-period |
 | 8 | `usp_GetPayrollsByEmployee` | READ | Returns payroll history ordered by `PayPeriod DESC` |
 
 ### Common Procedure Skeleton
@@ -396,6 +436,7 @@ END
 - ✅ **Duplicate prevention**: `usp_InsertPayroll` with same `(EmployeeId, PayPeriod)` returns **error 2627** (UNIQUE violation)
 - ✅ **Transactional atomicity**: All TPT inserts succeed together or roll back together
 - ✅ **Cascade cleanup**: Deleting a payroll-free employee removes their subclass row automatically
+- ✅ **Caller-supplied timestamp**: `usp_InsertPayroll` persists the application's `@GeneratedAt` value instead of a server default (see [Incident Log #3](#incident-3--payroll-timestamps-were-utc-the-missing-parameter))
 
 ---
 
@@ -423,9 +464,11 @@ END
 
 ## 🔌 Data Access Layer
 
-`Helpers/DatabaseHelper.cs` is the **single ADO.NET wrapper** through which every repository talks to SQL Server. It centralizes connection lifecycle, command setup, and parameter binding so no repository repeats that boilerplate.
+The data access layer has two parts: the shared `DatabaseHelper` (raw ADO.NET) and the two repositories that turn rows into domain objects.
 
-### Public API
+### DatabaseHelper — The ADO.NET Wrapper
+
+`Helpers/DatabaseHelper.cs` is the **single ADO.NET wrapper** through which every repository talks to SQL Server. It centralizes connection lifecycle, command setup, and parameter binding so no repository repeats that boilerplate.
 
 | Method | Returns | Use For |
 | --- | --- | --- |
@@ -434,17 +477,91 @@ END
 | `ExecuteNonQuery(proc, params?)` | `int` (rows affected) | INSERT/UPDATE/DELETE procedures without OUTPUT params |
 | `ExecuteNonQueryWithOutput(proc, params, outName)` | `int` (OUTPUT value) | INSERT procedures returning a new ID via OUTPUT parameter |
 
-### Design Principles Enforced
-
+**Design principles enforced:**
 - **Resource safety:** every connection/command/reader is wrapped in a `using` statement → guaranteed `Dispose()` even on exceptions, no connection-pool leaks
 - **Stored-procedure-only:** `CommandType.StoredProcedure` is set on every command → no inline SQL, no injection vectors
 - **Short connection lifetime:** `ExecuteReader` calls `DataTable.Load(reader)` *inside* the `using` scope, so the connection closes before the method returns
 - **Error propagation:** `SqlException` is deliberately **not caught** here — it flows up unchanged so the repository/service layers can pattern-match on `ex.Number` (547, 2627, etc.) and map to domain exceptions
 - **Production note flagged in code:** the connection string is a hardcoded `const` for local dev; production would use `IConfiguration` / env vars / a secrets manager
 
-### Verified Behavior
+### The Repositories — Rows into Objects
 
-`Program.cs` includes a **DatabaseHelper smoke test** that calls `usp_GetAllEmployees` and prints all 6 seeded employees with type-aware detail — the first end-to-end C#-to-SQL round-trip in the project, exercising the TPT JOIN, the discriminator column, and the full ADO.NET pipeline.
+| Repository | Maps | Key Technique |
+| --- | --- | --- |
+| `EmployeeRepository` | TPT rows → `FullTime`/`PartTime`/`Contract` | **Discriminator switch** on `EmployeeType` column constructs the correct subclass; returns `List<Employee>` |
+| `PayrollRepository` | payroll rows → `Payroll` | **Sealed-entity mapping** — no branching; uses the public reconstruction constructor (chosen over reflection for compile-time safety) |
+
+Both repositories return domain objects only — never `DataRow`, `DataTable`, or anything SQL-specific. `GetEmployeeById` returns `Employee?` (null = not found); list methods return empty lists, never null.
+
+---
+
+## ⚙️ Service Layer
+
+The service layer is the application's **trust boundary**. It validates business rules, orchestrates repositories, and translates raw `SqlException` numbers into meaningful domain exceptions.
+
+### EmployeeService
+
+Constructor-injected with an `EmployeeRepository`. Validates every field fail-fast, then delegates.
+
+| Method | Validates | Maps SQL Error |
+| --- | --- | --- |
+| `GetAllEmployees()` | — | — |
+| `GetEmployeeById(id)` | id > 0 | null result → `EmployeeNotFoundException` |
+| `InsertFullTimeEmployee(...)` | name, email, dept, hire date ≤ today, salary > 0 | 2627 → `DuplicateEmailException` |
+| `InsertPartTimeEmployee(...)` | + hourly rate > 0, hours 0–200 | 2627 → `DuplicateEmailException` |
+| `InsertContractEmployee(...)` | + contract amount > 0, end date > hire date | 2627 → `DuplicateEmailException` |
+| `DeleteEmployee(id)` | id > 0 | 547 → `EmployeeHasPayrollsException` |
+
+### PayrollService
+
+Constructor-injected with **both** repositories — it composes them. Payrolls are immutable: there is deliberately **no update and no delete** method.
+
+| Method | Behavior |
+| --- | --- |
+| `GetPayrollsByEmployee(id)` | Validates id; returns history (empty list if none) |
+| `GenerateAndInsertPayroll(id, period)` | Validates id + period; verifies employee exists (→ `EmployeeNotFoundException`); calls `Payroll.GenerateFor()`; maps 2627 → `DuplicatePayrollException` |
+| `InsertPayroll(payroll)` | Direct insertion of a pre-built record (testing/bulk); same duplicate mapping |
+
+### Custom Domain Exceptions
+
+`Helpers/CustomExceptions.cs` defines the vocabulary the UI catches and displays:
+
+| Exception | Raised When |
+| --- | --- |
+| `EmployeeNotFoundException` | Lookup by ID returns nothing |
+| `EmployeeHasPayrollsException` | Delete blocked by audit-integrity FK (547) |
+| `DuplicateEmailException` | Insert violates `UNIQUE(Email)` (2627) |
+| `DuplicatePayrollException` | Payroll violates `UNIQUE(EmployeeId, PayPeriod)` (2627) |
+| `InvalidEmployeeDataException` | Any business-rule validation fails |
+
+---
+
+## 📺 Console UI Layer
+
+`Helpers/MenuHelper.cs` is the interactive presentation layer. It is constructor-injected with both services and runs a simple, robust menu loop.
+
+```
+═══════════════════════════════════════════
+  MAIN MENU
+═══════════════════════════════════════════
+1. View All Employees
+2. View Specific Employee
+3. Insert Full-Time Employee
+4. Insert Part-Time Employee
+5. Insert Contract Employee
+6. Delete Employee
+7. View Payrolls for Employee
+8. Generate Payroll for Employee
+9. Exit
+═══════════════════════════════════════════
+```
+
+**UX & robustness features:**
+- **Field-level validation with retry** — bad input (empty name, missing `@`, future hire date, end-date-before-start) is rejected *immediately* on that field and re-prompted, rather than failing after the whole form is filled
+- **Typed input helpers** — `PromptForInt`, `PromptForDecimal`, and a strict `PromptForDate` (`DateTime.TryParseExact` with `yyyy-MM-dd`) loop until the value parses
+- **Color-coded output** — green for success, red (❌) for errors, yellow (⚠️) for warnings, via `ConsoleColor` with guaranteed `ResetColor()`
+- **Graceful exception handling** — every domain exception is caught and shown as a friendly message; the loop never crashes
+- **Pause-after-action** — results stay on screen until the user presses Enter
 
 ---
 
@@ -540,7 +657,7 @@ dotnet build
 dotnet run
 ```
 
-Outputs a colored banner, a polymorphism demo, a payroll-generation demo, and a **DatabaseHelper smoke test** that reads all 6 employees live from SQL Server.
+On startup the app prints a banner, verifies database connectivity, then drops straight into the interactive menu.
 
 ### 5. Stop the database when done
 
@@ -575,9 +692,9 @@ Server=localhost,1433;Database=PayrollDB;User Id=sa;Password=YourStrong!Pass123;
 
 ## 📊 Build Roadmap
 
-The project is being built in **15 sequential phases**.
+The project was built in **15 sequential phases** — all complete.
 
-### ✅ Completed (8 / 15)
+### ✅ Completed (15 / 15)
 
 - [x] **Phase 0** — Docker + SQL Server 2022 infrastructure
 - [x] **Phase 1** — Project scaffold and folder structure
@@ -588,24 +705,21 @@ The project is being built in **15 sequential phases**.
 - [x] **Phase 6** — 8 stored procedures with `THROW;` error semantics and transactional atomicity
 - [x] **Phase 7** — 5 analytical queries demonstrating CTEs, window functions, conditional aggregation
 - [x] **Phase 8** — `DatabaseHelper` ADO.NET wrapper + live DB smoke test + ops/backup scripts
+- [x] **Phase 9** — `EmployeeRepository` with TPT-aware polymorphic mapping
+- [x] **Phase 10** — `PayrollRepository` with sealed-entity mapping + reconstruction constructor
+- [x] **Phase 11** — `EmployeeService` (validation + FK/UNIQUE → domain exception mapping)
+- [x] **Phase 12** — `PayrollService` (immutable payroll generation + duplicate detection)
+- [x] **Phase 13** — `MenuHelper` console UI with field-level validation and color-coded output
+- [x] **Phase 14** — `Program.cs` cleanup: DB connectivity check + dependency-injection wiring + menu launch
+- [x] **Phase 15** — Final polish, documentation, and end-to-end manual testing
 
-### 🟡 In Progress / Pending (7 / 15)
-
-- [ ] **Phase 9** — `EmployeeRepository` with TPT-aware polymorphic mapping
-- [ ] **Phase 10** — `PayrollRepository`
-- [ ] **Phase 11** — `EmployeeService` (validation + business logic + FK exception handling)
-- [ ] **Phase 12** — `PayrollService` (salary generation)
-- [ ] **Phase 13** — Console menu system
-- [ ] **Phase 14** — `Program.cs` wiring + try/catch + logging
-- [ ] **Phase 15** — Final polish, README updates, manual testing
-
-**Progress:** `██████████░░░░░░░░░░ 53%`
+**Progress:** `████████████████████ 100%`
 
 ---
 
 ## 🔥 Incident Log — Real Debugging Stories
 
-Real engineering isn't a clean march from phase to phase. Two production-style incidents occurred during development. Both were diagnosed methodically and resolved without permanent data loss — precisely because the project follows infrastructure-as-code discipline.
+Real engineering isn't a clean march from phase to phase. Four production-style incidents occurred during development. Each was diagnosed methodically and resolved without permanent data loss — precisely because the project follows infrastructure-as-code discipline.
 
 ### Incident #1 — Docker Vanished Mid-Project
 
@@ -657,6 +771,50 @@ When the database was rebuilt from scratch during Incident #1's recovery, the ta
 
 ---
 
+### Incident #3 — Payroll Timestamps Were UTC: The Missing Parameter
+
+**Symptom:** A payroll generated at 23:50 IST showed up in the menu as `Generated: 2026-06-08 17:53:19` — exactly **5 hours 30 minutes behind** local time. Curiously, the in-memory smoke test printed the *correct* local time; only payrolls read back from the database were wrong.
+
+**Why it happened — a two-part story:**
+
+1. **First fix attempt (incomplete):** `Payroll.GenerateFor()` originally stamped records with `DateTime.UtcNow`. We switched it to `DateTime.Now` so the timestamp would reflect local IST. The in-memory object was now correct — but the database value didn't change at all.
+
+2. **The real root cause:** The C# `PayrollRepository.InsertPayroll()` never sent the timestamp to the database. The parameter list was missing `@GeneratedAt` entirely, so the stored procedure's `INSERT` never wrote that column — SQL Server filled it from a server-side default (UTC). The application's carefully-computed local time was silently discarded on the way to the database.
+
+3. **The cascade:** When we added `@GeneratedAt` to the C# parameter array, the next run failed with a *new* error: **`Procedure or function usp_InsertPayroll has too many arguments specified.`** The stored procedure in the database still had the old 7-parameter signature. The C# code and the SQL procedure had drifted out of sync.
+
+**How it was overcome (in brief):**
+1. Compared the C# parameter array against the live procedure definition with `SP_HELPTEXT 'usp_InsertPayroll'` — confirmed the procedure had no `@GeneratedAt` parameter and didn't insert that column.
+2. Updated the stored procedure in **three places**: the parameter list (`@GeneratedAt DATETIME2`), the `INSERT` column list (`GeneratedAt`), and the `VALUES` clause (`@GeneratedAt`).
+3. Re-deployed the procedure and updated the source-controlled `Database/03_procedures.sql` to match.
+4. Generated a fresh payroll and confirmed the stored timestamp now matched local IST.
+
+**Key takeaways:**
+- **A change in one layer must propagate to every dependent layer.** Adding a C# parameter is only half the change; the stored procedure is the other half. Layered architecture demands that discipline.
+- **Silent data loss is worse than a crash.** The missing parameter didn't throw — it just quietly dropped the value and let SQL substitute a default. The bug only surfaced because a human noticed the clock was off.
+- **`DateTime.UtcNow` vs `DateTime.Now` is a real decision.** Store UTC for global/audit systems and convert at the edges; use local time only when the app is single-timezone by design. Either way, *the value the app computes must actually reach the database.*
+- **`SP_HELPTEXT` is the fastest way** to confirm what a procedure *actually* looks like in the database versus what the source file claims.
+
+---
+
+### Incident #4 — Late Validation Felt "Broken"
+
+**Symptom:** When inserting a contract employee through the menu, a user filled in *every* field — name, email, department, hire date, contract amount, end date — and only **then** saw `❌ Email must be valid (contain '@')`. The form had to be restarted from the top. It felt like the program was ignoring input until the very end.
+
+**Why it happened:** The first version of `MenuHelper` collected all inputs with bare `Console.ReadLine()` calls, then handed everything to the service in one shot. The service correctly rejected the bad email — but only *after* every prompt had run. The `PromptForString` helper did no validation at all, so empty names and malformed emails sailed straight through the UI and were caught only at the very end by the service's fail-fast checks.
+
+**How it was overcome (in brief):**
+1. Wrapped each field prompt in its own `while (true)` retry loop that validates *immediately* and re-prompts on failure — so a bad email is rejected on the email line, not after the whole form.
+2. Extended the same field-level guarding to the date fields specifically: hire date must be `≤ today`, and contract end date must be `> hire date`, each checked right after entry.
+3. Kept the service-layer validation exactly as-is — see [Architectural Choice #12](#12-two-tier-validation--ui-guards--service-enforces). The UI loop improves UX; the service remains the real correctness boundary.
+
+**Key takeaways:**
+- **Validate at the point of entry for humans, and at the service for correctness.** Two tiers, two different jobs — the duplication is intentional.
+- **A separate "format" check and "business-rule" check can confuse users if they fire at different times.** `PromptForDate` validated *format* immediately but the *"not in the future"* rule fired only at the service, so a correctly-formatted future date looked accepted until the end. Pulling that rule into the field loop made the feedback instant and obvious.
+- **Good UX is part of "done."** The logic was correct from the start; the *experience* wasn't. Polishing the input loop was a legitimate engineering task, not a nicety.
+
+---
+
 ## 📚 Lessons Captured During Development
 
 ### Linux / Shell
@@ -670,6 +828,7 @@ When the database was rebuilt from scratch during Incident #1's recovery, the ta
 - Systemd manages services: `start`, `enable`, `status` is the trio you'll use for life
 - **`apt autoremove` can cascade-remove services** whose dependencies are orphaned by an unrelated uninstall — mark critical packages with `apt-mark manual`
 - **`apt purge` on Docker also removes `/var/lib/docker/`** (volumes included) — back up data dirs before purging stateful packages, or use `apt remove`
+- A heredoc piped into `docker exec -it` fails with *"cannot attach stdin to a TTY"* — drop `-t`, or write the SQL to a file, `docker cp` it in, and run with `-i …sqlcmd -i /tmp/file.sql`
 
 ### Git Hygiene
 
@@ -677,6 +836,7 @@ When the database was rebuilt from scratch during Incident #1's recovery, the ta
 - `git reset --soft HEAD~1` — undo commit, keep file changes staged for re-commit
 - `git reset --hard HEAD~1` — nuclear: deletes commit AND file changes (irreversible)
 - Conventional commit format: `<type>(<scope>): <description>` (feat / fix / docs / chore / refactor / test)
+- An architectural change that *enables* a feature belongs in that feature's commit (e.g., the Payroll reconstruction constructor shipped alongside `PayrollRepository`)
 
 ### C# / .NET
 
@@ -684,15 +844,21 @@ When the database was rebuilt from scratch during Incident #1's recovery, the ta
 - Fail-fast validation (validate all → then assign) prevents partial-state objects on exceptions
 - `sealed` on concrete leaf classes signals design intent AND enables JIT devirtualization for free perf
 - Immutable records (`private` constructor + factory method) prevent calculation drift across a codebase
+- A class can have **two constructors for two intents**: a private one for *generation* (computes values) and a public one for *reconstruction* (hydrates from storage) — clearer and safer than reflection
+- Prefer a public reconstruction constructor over **reflection** to rebuild objects from DB rows — reflection bypasses the compiler's safety net and breaks silently at runtime when signatures change
 - Modern C#: file-scoped namespaces, expression-bodied members, string interpolation, `nameof()` in exceptions
 - `<Nullable>enable</Nullable>` makes string non-nullable by default — embrace it
 - ADO.NET: wrap connections/commands/readers in `using`; materialize `DataTable.Load(reader)` *inside* the scope so the connection closes before returning — never return a live `SqlDataReader`
 - Don't catch `SqlException` in the data-access wrapper — let it propagate so upper layers can map `ex.Number` to domain exceptions
+- `DateTime.Now` (local) vs `DateTime.UtcNow` (universal) is a deliberate choice — and the value you pick must actually be *sent* to the database, not dropped by a missing parameter
+- Validate at the point of entry for UX **and** at the service layer for correctness — two tiers, intentional duplication
+- Use `int.TryParse` / `decimal.TryParse` / `DateTime.TryParseExact` in retry loops so bad console input re-prompts instead of crashing
+- Always `Console.ResetColor()` after setting `ForegroundColor`, or every later line inherits the color
 
 ### Production-Grade Considerations Flagged In Code
 
 - Email validation via `Contains('@')` is naive — production uses `System.Net.Mail.MailAddress` or rigorous regex
-- `DateTime.UtcNow.Date` is timezone-fragile in production — `DateTimeOffset` or `DateOnly` are more robust
+- `DateTime.Now`/`DateTime.UtcNow` are timezone-fragile in distributed systems — `DateTimeOffset` is more robust; store UTC and convert at the edges
 - Connection strings hardcoded for local dev only — production uses env vars or secrets managers
 
 ### SQL Server / T-SQL
@@ -709,6 +875,9 @@ When the database was rebuilt from scratch during Incident #1's recovery, the ta
 - Window functions (`ROW_NUMBER`, `RANK`, `DENSE_RANK`) differ in tie behavior — pick based on intent, not familiarity
 - **`DBCC CHECKIDENT RESEED N` makes the next ID `N` on a fresh table but `N+1` on a used one** — guard reseeds with `IF IDENT_CURRENT(...) > 1`
 - **Seed data should reference rows by natural keys, not hardcoded IDs** — hardcoded FK values silently misalign if ID allocation shifts
+- **A stored-procedure signature and its C# caller must stay in lockstep** — adding a column means editing the parameter list, the `INSERT` columns, and the `VALUES` clause, *and* the C# parameter array
+- **`SP_HELPTEXT 'proc_name'`** prints the live procedure body — the fastest way to confirm DB reality vs the source file
+- **Error 8144** = "procedure has too many arguments" — the classic signal that C# is sending a parameter the procedure doesn't declare
 
 ### Operations & Resilience
 
@@ -716,6 +885,7 @@ When the database was rebuilt from scratch during Incident #1's recovery, the ta
 - Two backup layers (volume snapshot + native `.bak`) cover different restore scenarios
 - `RESTORE VERIFYONLY` proves a backup is restorable — a bad backup is worse than no backup because it gives false confidence
 - Back up *before* risky operations, automatically at shutdown, and label save-points by intent
+- Updating a stored procedure does **not** touch existing rows or table structure — it's a safe, in-place definition swap; historical data is untouched and only new writes use the new logic
 
 ### Project Management
 
@@ -724,6 +894,7 @@ When the database was rebuilt from scratch during Incident #1's recovery, the ta
 - Verify side-effects in databases by reading state, not by trusting "success" messages from clients
 - Architectural choices have costs — name them explicitly, document them, defend them
 - A clear incident log turns painful debugging sessions into portfolio-worthy engineering stories
+- "Done" includes UX and documentation, not just correct logic — a feature that *works* but *frustrates* isn't finished
 
 ---
 
@@ -736,5 +907,7 @@ MIT — built for personal learning and portfolio use.
 <div align="center">
 
 **Built with discipline · Documented with care · Ready for senior review**
+
+*15 / 15 phases · Full vertical slice · SQL Server → Repositories → Services → Interactive UI*
 
 </div>
