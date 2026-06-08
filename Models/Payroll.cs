@@ -23,9 +23,32 @@ public sealed class Payroll
     public DateTime GeneratedAt { get; private set; }
 
     /// <summary>
-    /// Private constructor to prevent direct instantiation and force callers to use the static factory method.
+    /// Private constructor to prevent direct instantiation and force callers to use the static factory method or reconstruction constructor.
     /// </summary>
     private Payroll(
+        int employeeId,
+        DateTime payPeriod,
+        decimal grossSalary,
+        decimal taxDeduction,
+        decimal healthInsuranceDeduction,
+        decimal netSalary,
+        DateTime generatedAt)
+    {
+        PayrollId = 0;
+        EmployeeId = employeeId;
+        PayPeriod = payPeriod;
+        GrossSalary = grossSalary;
+        TaxDeduction = taxDeduction;
+        HealthInsuranceDeduction = healthInsuranceDeduction;
+        NetSalary = netSalary;
+        GeneratedAt = generatedAt;
+    }
+
+    /// <summary>
+    /// Public constructor for database reconstruction.
+    /// This allows repositories to rebuild Payroll from database rows.
+    /// </summary>
+    public Payroll(
         int payrollId,
         int employeeId,
         DateTime payPeriod,
@@ -71,7 +94,6 @@ public sealed class Payroll
         decimal net = gross - tax - insurance;
 
         return new Payroll(
-            payrollId: 0,
             employeeId: employee.EmployeeId,
             payPeriod: payPeriod,
             grossSalary: gross,

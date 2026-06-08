@@ -100,3 +100,29 @@ if (notFound == null)
 {
     Console.WriteLine("  Correctly returned null (employee not found)");
 }
+
+Console.WriteLine();
+Console.WriteLine("--- PayrollRepository Smoke Test ---");
+
+var payrollRepo = new PayrollRepository();
+
+// Test 1: Get payrolls for Alice (ID: 1)
+Console.WriteLine("Payrolls for Alice (Employee ID: 1):");
+var alicePayrolls = payrollRepo.GetPayrollsByEmployee(1);
+if (alicePayrolls.Count == 0)
+{
+    Console.WriteLine("  No payrolls found.");
+}
+else
+{
+    foreach (var p in alicePayrolls)
+    {
+        Console.WriteLine($"  Period: {p.PayPeriod:yyyy-MM}, Gross: {p.GrossSalary:C}, Net: {p.NetSalary:C}");
+    }
+}
+
+// Test 2: Get payrolls for a non-existent employee (ID: 999)
+Console.WriteLine();
+Console.WriteLine("Payrolls for non-existent employee (ID: 999):");
+var notFoundPayrolls = payrollRepo.GetPayrollsByEmployee(999);
+Console.WriteLine($"  {(notFoundPayrolls.Count == 0 ? "Correctly returned empty list" : "ERROR: Expected empty list")}");
