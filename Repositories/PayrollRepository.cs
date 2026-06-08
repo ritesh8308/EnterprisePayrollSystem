@@ -53,6 +53,7 @@ public class PayrollRepository
             new SqlParameter("@TaxDeduction", payroll.TaxDeduction),
             new SqlParameter("@HealthInsuranceDeduction", payroll.HealthInsuranceDeduction),
             new SqlParameter("@NetSalary", payroll.NetSalary),
+            new SqlParameter("@GeneratedAt", payroll.GeneratedAt),
             new SqlParameter("@NewPayrollId", SqlDbType.Int) { Direction = ParameterDirection.Output }
         };
 

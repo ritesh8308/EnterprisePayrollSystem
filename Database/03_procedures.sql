@@ -302,6 +302,7 @@ CREATE PROCEDURE dbo.usp_InsertPayroll
     @TaxDeduction             DECIMAL(18, 2),
     @HealthInsuranceDeduction DECIMAL(18, 2),
     @NetSalary                DECIMAL(18, 2),
+    @GeneratedAt              DATETIME2,
     @NewPayrollId             INT OUTPUT
 AS
 BEGIN
@@ -322,7 +323,8 @@ BEGIN
             GrossSalary, 
             TaxDeduction, 
             HealthInsuranceDeduction, 
-            NetSalary
+            NetSalary,
+            GeneratedAt
         )
         VALUES (
             @EmployeeId, 
@@ -330,7 +332,8 @@ BEGIN
             @GrossSalary, 
             @TaxDeduction, 
             @HealthInsuranceDeduction, 
-            @NetSalary
+            @NetSalary,
+            @GeneratedAt
         );
 
         SET @NewPayrollId = SCOPE_IDENTITY();
