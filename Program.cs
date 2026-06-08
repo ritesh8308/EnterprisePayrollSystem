@@ -5,6 +5,7 @@ using System.Linq;
 using EnterprisePayrollSystem.Helpers;
 using EnterprisePayrollSystem.Models;
 using EnterprisePayrollSystem.Repositories;
+using EnterprisePayrollSystem.Services;
 using Microsoft.Data.SqlClient;
 
 Console.ForegroundColor = ConsoleColor.Cyan;
@@ -126,3 +127,75 @@ Console.WriteLine();
 Console.WriteLine("Payrolls for non-existent employee (ID: 999):");
 var notFoundPayrolls = payrollRepo.GetPayrollsByEmployee(999);
 Console.WriteLine($"  {(notFoundPayrolls.Count == 0 ? "Correctly returned empty list" : "ERROR: Expected empty list")}");
+
+Console.WriteLine();
+Console.WriteLine("--- EmployeeService Smoke Test ---");
+
+var empRepo = new EmployeeRepository();
+var empService = new EmployeeService(empRepo);
+
+// Test 1: Get all employees (valid)
+Console.WriteLine("Test 1: GetAllEmployees() — valid");
+var allEmps = empService.GetAllEmployees();
+Console.WriteLine($"  ✓ Loaded {allEmps.Count} employees");
+
+// Test 2: Get specific employee (valid)
+Console.WriteLine("Test 2: GetEmployeeById(1) — valid (Alice)");
+try
+{
+    var aliceSvc = empService.GetEmployeeById(1);
+    Console.WriteLine($"  ✓ Found: {aliceSvc.FullName}");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"  ✗ Error: {ex.Message}");
+}
+
+// Test 3: Get non-existent employee (should raise EmployeeNotFoundException)
+Console.WriteLine("Test 3: GetEmployeeById(999) — invalid (not found)");
+try
+{
+    var notFoundSvc = empService.GetEmployeeById(999);
+    Console.WriteLine($"  ✗ ERROR: Should have thrown EmployeeNotFoundException");
+}
+catch (EmployeeNotFoundException ex)
+{
+    Console.WriteLine($"  ✓ Correctly raised: {ex.Message}");
+}
+
+// Test 4: Try to insert with duplicate email (should raise DuplicateEmailException)
+Console.WriteLine("Test 4: InsertFullTimeEmployee with duplicate email");
+try
+{
+    // Alice's email is alice.johnson@corp.com (from seed data)
+    empService.InsertFullTimeEmployee("Dummy Name", "alice.johnson@corp.com", "HR", DateTime.Now, 5000m);
+    Console.WriteLine($"  ✗ ERROR: Should have thrown DuplicateEmailException");
+}
+catch (DuplicateEmailException ex)
+{
+    Console.WriteLine($"  ✓ Correctly raised: {ex.Message}");
+}
+
+// Test 5: Try to insert with invalid email (should raise InvalidEmployeeDataException)
+Console.WriteLine("Test 5: InsertFullTimeEmployee with invalid email");
+try
+{
+    empService.InsertFullTimeEmployee("Test User", "not-an-email", "HR", DateTime.Now, 5000m);
+    Console.WriteLine($"  ✗ ERROR: Should have thrown InvalidEmployeeDataException");
+}
+catch (InvalidEmployeeDataException ex)
+{
+    Console.WriteLine($"  ✓ Correctly raised: {ex.Message}");
+}
+
+// Test 6: Try to delete an employee with payrolls (should raise EmployeeHasPayrollsException)
+Console.WriteLine("Test 6: DeleteEmployee(1) — should fail (Alice has payrolls)");
+try
+{
+    empService.DeleteEmployee(1);
+    Console.WriteLine($"  ✗ ERROR: Should have thrown EmployeeHasPayrollsException");
+}
+catch (EmployeeHasPayrollsException ex)
+{
+    Console.WriteLine($"  ✓ Correctly raised: {ex.Message}");
+}
