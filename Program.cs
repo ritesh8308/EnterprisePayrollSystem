@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Globalization;
 using System.Linq;
 using EnterprisePayrollSystem.Helpers;
 using EnterprisePayrollSystem.Models;
@@ -266,3 +267,15 @@ catch (InvalidEmployeeDataException ex)
 {
     Console.WriteLine($"  ✓ Correctly raised: {ex.Message}");
 }
+
+Console.WriteLine();
+Console.WriteLine("Starting interactive menu...");
+Console.WriteLine();
+
+var finalEmployeeRepo = new EmployeeRepository();
+var finalPayrollRepo = new PayrollRepository();
+var finalEmployeeService = new EmployeeService(finalEmployeeRepo);
+var finalPayrollServiceInstance = new PayrollService(finalEmployeeRepo, finalPayrollRepo);
+var finalMenu = new MenuHelper(finalEmployeeService, finalPayrollServiceInstance);
+
+finalMenu.Run();
