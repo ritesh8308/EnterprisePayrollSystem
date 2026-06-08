@@ -4,6 +4,7 @@ using System.Data;
 using System.Linq;
 using EnterprisePayrollSystem.Helpers;
 using EnterprisePayrollSystem.Models;
+using EnterprisePayrollSystem.Repositories;
 using Microsoft.Data.SqlClient;
 
 Console.ForegroundColor = ConsoleColor.Cyan;
@@ -70,4 +71,32 @@ catch (SqlException ex)
     Console.ForegroundColor = ConsoleColor.Red;
     Console.WriteLine($"Database error {ex.Number}: {ex.Message}");
     Console.ResetColor();
+}
+
+Console.WriteLine();
+Console.WriteLine("--- EmployeeRepository Smoke Test ---");
+
+var repo = new EmployeeRepository();
+var allEmployees = repo.GetAllEmployees();
+
+Console.WriteLine($"Loaded {allEmployees.Count} employees from repository.");
+foreach (var emp in allEmployees)
+{
+    Console.WriteLine($"  [{emp.EmployeeType}] {emp.FullName} (ID: {emp.EmployeeId})");
+}
+
+Console.WriteLine();
+Console.WriteLine("Testing GetEmployeeById(1) [should be Alice]:");
+var alice = repo.GetEmployeeById(1);
+if (alice != null)
+{
+    Console.WriteLine($"  Found: {alice.FullName} — {alice.GetEmployeeInfo()}");
+}
+
+Console.WriteLine();
+Console.WriteLine("Testing GetEmployeeById(999) [should be null]:");
+var notFound = repo.GetEmployeeById(999);
+if (notFound == null)
+{
+    Console.WriteLine("  Correctly returned null (employee not found)");
 }
